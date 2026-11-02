@@ -1,3 +1,4 @@
+import { requiredDesktopExtensions } from "./conversation/desktop-integrations";
 import { runVideoLearnFiles } from "./video-learn/engine";
 import { videoLearnSessionOptions } from "./video-learn/runtime-options";
 import { DoubaoAppService } from "./doubao-app/service";
@@ -967,6 +968,7 @@ app
     const driverOptions: NonNullable<
       ConstructorParameters<typeof DesktopAppStore>[0]["driverOptions"]
     > = {
+      requiredExtensions: await requiredDesktopExtensions(),
       onTurnCaptureBoundary: (boundary, signal) => checkpoints.recordBoundary(boundary, signal),
       // The store bounds each capture from when it starts; this only stops a stuck boundary,
       // including one waiting behind another run's capture in the same checkout.

@@ -92,6 +92,7 @@ interface RuntimeContext {
 export interface RuntimeSupervisorOptions {
   readonly agentDir?: string;
   readonly builtinExtensions?: readonly BuiltinExtension[];
+  readonly requiredExtensions?: readonly import("@earendil-works/pi-coding-agent").InlineExtension[];
   readonly isBuiltinExtensionEnabled?: BuiltinExtensionEnabled;
   readonly customProviderStore?: CustomProviderStore;
 }
@@ -109,6 +110,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
   private readonly modelsJsonPath: string;
   private readonly authPath: string;
   private readonly builtinExtensions: readonly BuiltinExtension[];
+  private readonly requiredExtensions: RuntimeSupervisorOptions["requiredExtensions"];
   private readonly isBuiltinExtensionEnabled: BuiltinExtensionEnabled;
   private readonly customProviderStore: CustomProviderStore;
   private readonly contexts = new Map<string, RuntimeContext>();
@@ -119,6 +121,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
     this.modelsJsonPath = deps.modelsJsonPath;
     this.authPath = deps.authPath;
     this.builtinExtensions = options.builtinExtensions ?? [];
+    this.requiredExtensions = options.requiredExtensions;
     this.isBuiltinExtensionEnabled = options.isBuiltinExtensionEnabled ?? (() => true);
     this.customProviderStore = deps.customProviderStore;
   }
@@ -416,7 +419,10 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
 
   /** Every built-in loads ungated here so Settings can list a switched-off one with its tools. */
   private inventoryExtensionFactories(): InlineExtension[] {
-    return this.builtinExtensions.map(({ name, factory }) => ({ name, factory }));
+    return [
+      ...this.builtinExtensions.map(({ name, factory }) => ({ name, factory })),
+      ...(this.requiredExtensions ?? []),
+    ];
   }
 
   private async ensureContext(workspace: WorkspaceRef): Promise<RuntimeContext> {

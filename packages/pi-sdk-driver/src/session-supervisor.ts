@@ -160,6 +160,8 @@ export interface PiSdkDriverOptions {
   ) => Promise<AgentSessionRuntime>;
   readonly agentDir?: string;
   readonly builtinExtensions?: readonly BuiltinExtension[];
+  /** Host-owned integrations which must remain loaded independently of optional resource toggles. */
+  readonly requiredExtensions?: readonly InlineExtension[];
   /** Read each time a session loads or reloads its extensions; defaults to enabled. */
   readonly isBuiltinExtensionEnabled?: BuiltinExtensionEnabled;
   readonly desktopExtensions?: PiDesktopExtensionObserver;
@@ -272,10 +274,13 @@ export class SessionSupervisor {
         : new JsonCatalogStore());
     this.createAgentSessionRuntimeImpl =
       options.createAgentSessionRuntimeImpl ?? createAgentSessionRuntimeWithNpmFallback;
-    this.builtinExtensions = gatedBuiltinExtensions(
-      options.builtinExtensions ?? [],
-      options.isBuiltinExtensionEnabled ?? (() => true),
-    );
+    this.builtinExtensions = [
+      ...gatedBuiltinExtensions(
+        options.builtinExtensions ?? [],
+        options.isBuiltinExtensionEnabled ?? (() => true),
+      ),
+      ...(options.requiredExtensions ?? []),
+    ];
     this.desktopExtensions = options.desktopExtensions;
     this.onTurnCaptureBoundary = options.onTurnCaptureBoundary;
     this.turnCaptureTimeoutMs = options.turnCaptureTimeoutMs;
