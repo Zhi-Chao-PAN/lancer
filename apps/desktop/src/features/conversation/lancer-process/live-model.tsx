@@ -1,4 +1,5 @@
 import { BranchReturnCard } from "./branch-return-card";
+import { sessionRunLabel } from "../../../../contracts/session-run-state";
 import { moduleZones } from "../../../../contracts/lancer-modules";
 import { conversationRoot } from "../../../../contracts/lancer-assistants";
 import { modelFamily } from "../../../ui/model-families";
@@ -128,7 +129,7 @@ export function buildLiveProcessData(input: LiveProcessInput): {
                 (thread.session.id === input.selectedSessionId &&
                   videoLearn?.guiStatus === "FAILED")
               ? "failed"
-              : thread.session.status === "idle"
+              : thread.session.status === "idle" && thread.session.lastRunOutcome === "completed"
                 ? "done"
                 : "",
         selected: thread.session.id === (input.sidebarSessionId ?? input.selectedSessionId),
@@ -561,9 +562,10 @@ export function buildLiveProcessData(input: LiveProcessInput): {
                   input.threads.find((thread) => thread.session.id === lane.sessionId)?.session
                     .status === "failed"
                 ? "失败"
-                : events.some((event) => event.lane === lane.id)
-                  ? "完成"
-                  : "待开始",
+                : sessionRunLabel(
+                    input.threads.find((thread) => thread.session.id === lane.sessionId)?.session,
+                    events.some((event) => event.lane === lane.id),
+                  ),
         relay: [],
         available: true,
         parentLaneId: input.children?.find((child) => child.childSessionId === lane.sessionId)
