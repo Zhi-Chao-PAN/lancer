@@ -1,4 +1,5 @@
-import { delegatedTaskPrompt } from "./branch-return-batch";
+import { delegatedTaskPrompt, isChildSubtreeSettled } from "./branch-return-batch";
+import type { WaitThreadsInput, WaitThreadsToolDetails } from "./orchestration-runtime";
 import { TaskAdmission } from "./task-limits";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -89,6 +90,7 @@ interface OrchestrationOwnerHost {
         updatedAt: string;
         title: string;
         status: string;
+        lastRunOutcome?: string | null;
         preview?: string;
         config?: SessionConfig;
       }
@@ -119,6 +121,11 @@ interface OrchestrationOwnerHost {
 }
 
 export interface OrchestrationOwner {
+  waitThreadsToolResult(
+    parentRef: SessionRef,
+    input: WaitThreadsInput,
+    signal?: AbortSignal,
+  ): Promise<AgentToolResult<WaitThreadsToolDetails>>;
   reconcileDueSupervisionLoops(): { readonly changed: boolean };
   cancelChildRunsForParent(parentRef: SessionRef): Promise<void>;
   sendChildThreadFollowUp(input: SendChildThreadFollowUpInput): Promise<DesktopAppState>;
@@ -153,6 +160,8 @@ export interface OrchestrationOwner {
 
 export function createOrchestrationOwner(store: OrchestrationOwnerHost): OrchestrationOwner {
   return {
+    waitThreadsToolResult: (parentRef, input, signal) =>
+      waitThreadsToolResult(store, parentRef, input, signal),
     reconcileDueSupervisionLoops: () => reconcileDueSupervisionLoops(store),
     cancelChildRunsForParent: (parentRef) => cancelChildRunsForParent(store, parentRef),
     sendChildThreadFollowUp: (input) => sendChildThreadFollowUp(store, input),
@@ -175,6 +184,90 @@ export function createOrchestrationOwner(store: OrchestrationOwnerHost): Orchest
     sendMessageToThreadToolResult: (parentRef, input) =>
       sendMessageToThreadToolResult(store, parentRef, input),
   };
+}
+
+async function waitThreadsToolResult(
+  store: OrchestrationOwnerHost,
+  parentRef: SessionRef,
+  input: WaitThreadsInput,
+  signal?: AbortSignal,
+): Promise<AgentToolResult<WaitThreadsToolDetails>> {
+  if (signal?.aborted) throw new Error("Thread wait cancelled");
+  const timeout = input.timeoutMs ?? 60_000;
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 120_000)
+    throw new Error("Invalid thread wait timeout");
+  const direct = () =>
+    projectOrchestrationChildren(store).filter(
+      (c) =>
+        c.parentWorkspaceId === parentRef.workspaceId && c.parentSessionId === parentRef.sessionId,
+    );
+  const settled = () => {
+    const all = projectOrchestrationChildren(store);
+    return all
+      .filter(
+        (c) =>
+          c.parentWorkspaceId === parentRef.workspaceId &&
+          c.parentSessionId === parentRef.sessionId,
+      )
+      .every((c) => isChildSubtreeSettled(all, c));
+  };
+  const timedOut = await new Promise<boolean>((resolve, reject) => {
+    let finished = false;
+    let unsubscribe = () => {};
+    const cleanup = () => {
+      clearTimeout(timer);
+      unsubscribe();
+      signal?.removeEventListener("abort", abort);
+    };
+    const finish = (expired: boolean) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      resolve(expired);
+    };
+    const abort = () => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(new Error("Thread wait cancelled"));
+    };
+    const timer = setTimeout(() => finish(true), timeout);
+    unsubscribe = store.subscribeToSessionEvents(() => {
+      if (settled()) finish(false);
+    });
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+    else if (settled()) finish(false);
+  });
+  if (signal?.aborted) throw new Error("Thread wait cancelled");
+  const children = direct();
+  const threads = children.map((c) => ({
+    threadId: c.id,
+    title: c.title,
+    status: c.status,
+    result: [...c.transcript].reverse().find((m) => m.role === "child")?.text ?? c.latestTranscript,
+  }));
+  if (!timedOut) {
+    const ids = new Set(children.map((c) => c.id));
+    store.replaceOrchestrationChildren(
+      store.orchestrationState().orchestrationChildren.map((c) =>
+        ids.has(c.id)
+          ? {
+              ...c,
+              evidence: c.evidence.map((e) =>
+                e.toolName === "lancer-branch-return" && e.status === "reported"
+                  ? { ...e, status: "accepted" as const, updatedAt: new Date().toISOString() }
+                  : e,
+              ),
+            }
+          : c,
+      ),
+    );
+    await store.persistUiState();
+    store.emit();
+  }
+  const details: WaitThreadsToolDetails = { action: "pi_gui_wait_threads", timedOut, threads };
+  return { content: [{ type: "text", text: JSON.stringify(details) }], details };
 }
 
 interface SpawnChildThreadInput {
@@ -1118,7 +1211,23 @@ function projectOrchestrationChild(
   const transcript = toChildTranscript(rawTranscript, MAX_CHILD_TRANSCRIPT_MESSAGES);
   const latestTranscript = session?.preview || previewFromTranscript(rawTranscript) || child.goal;
   const updatedAt = latestSessionActivityAt(session?.updatedAt ?? child.updatedAt, rawTranscript);
-  const status = session ? toOrchestrationStatus(session.status, childRef, store) : child.status;
+  let status = session ? toOrchestrationStatus(session.status, childRef, store) : child.status;
+  if (session?.status === "idle") {
+    if (["cancelled", "failed", "interrupted"].includes(session.lastRunOutcome ?? ""))
+      status = "failed";
+    else if (!store.isTranscriptLoaded(childRef)) {
+      const report = [...child.evidence]
+        .reverse()
+        .find((e) => e.toolName === "lancer-branch-return" && e.kind === "worker_report");
+      status = report
+        ? report.title === "分支失败回传"
+          ? "failed"
+          : "complete"
+        : child.status === "running" || child.status === "waiting"
+          ? "failed"
+          : child.status;
+    }
+  }
 
   return {
     ...child,

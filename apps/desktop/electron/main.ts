@@ -199,6 +199,10 @@ const NEW_WINDOW_MENU_ITEM_ID = "file.new-window";
 
 function createStoreBackedOrchestrationRuntimeBridge(): OrchestrationRuntimeBridge {
   return {
+    waitThreads: async (ctx, input, signal) => {
+      await store.initialize();
+      return store.waitThreadsToolResult(sessionRefFromExtensionContext(ctx), input, signal);
+    },
     createChildThread: async (ctx, input) => {
       await store.initialize();
       return store.createChildThreadToolResult(sessionRefFromExtensionContext(ctx), input);

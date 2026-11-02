@@ -26,17 +26,8 @@ const childrenOf = (children: readonly OrchestrationChildThread[], target: Sessi
 export function collectBranchReturnBatches(
   children: readonly OrchestrationChildThread[],
 ): BranchReturnBatch[] {
-  const settled = (child: OrchestrationChildThread, seen = new Set<string>()): boolean => {
-    if (child.supervisionLoop?.gate === "stop") return true;
-    if (seen.has(child.id) || !["complete", "failed"].includes(child.status)) return false;
-    const next = new Set(seen).add(child.id);
-    return childrenOf(children, {
-      workspaceId: child.childWorkspaceId,
-      sessionId: child.childSessionId,
-    }).every(
-      (c) => settled(c, next) && (c.supervisionLoop?.gate === "stop" || pending(c).length === 0),
-    );
-  };
+  const settled = (child: OrchestrationChildThread, seen = new Set<string>()): boolean =>
+    isChildSubtreeSettled(children, child, seen);
   const groups = new Map<string, SessionRef>();
   for (const c of children)
     groups.set(JSON.stringify([c.parentWorkspaceId, c.parentSessionId]), {
@@ -54,6 +45,41 @@ export function collectBranchReturnBatches(
     if (entries.length) batches.push({ target, entries });
   }
   return batches;
+}
+
+export function collectLiveBranchReturnBatches(
+  children: readonly OrchestrationChildThread[],
+  liveIds: ReadonlySet<string>,
+): BranchReturnBatch[] {
+  return collectBranchReturnBatches(children)
+    .map((batch) => ({
+      ...batch,
+      entries: batch.entries
+        .map((entry) => ({
+          ...entry,
+          reports: entry.reports.filter((report) => liveIds.has(report.id)),
+        }))
+        .filter((entry) => entry.reports.length > 0),
+    }))
+    .filter((batch) => batch.entries.length > 0);
+}
+
+export function isChildSubtreeSettled(
+  children: readonly OrchestrationChildThread[],
+  child: OrchestrationChildThread,
+  seen = new Set<string>(),
+): boolean {
+  if (child.supervisionLoop?.gate === "stop") return true;
+  if (seen.has(child.id) || !["complete", "failed"].includes(child.status)) return false;
+  const next = new Set(seen).add(child.id);
+  return childrenOf(children, {
+    workspaceId: child.childWorkspaceId,
+    sessionId: child.childSessionId,
+  }).every(
+    (c) =>
+      isChildSubtreeSettled(children, c, next) &&
+      (c.supervisionLoop?.gate === "stop" || pending(c).length === 0),
+  );
 }
 
 /** Full evidence stays on disk; the parent gets bounded summaries and explicit links. */

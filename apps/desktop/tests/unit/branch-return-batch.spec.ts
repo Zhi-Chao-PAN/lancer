@@ -6,6 +6,7 @@ import type { OrchestrationChildThread } from "../../contracts/desktop-state";
 import { branchReturnEvidence } from "../../electron/orchestration/branch-return";
 import {
   collectBranchReturnBatches,
+  collectLiveBranchReturnBatches,
   delegatedTaskPrompt,
   prepareBranchReturnBatch,
 } from "../../electron/orchestration/branch-return-batch";
@@ -39,6 +40,18 @@ function child(
   })!;
   return { ...c, evidence: [evidence] };
 }
+test("restored pending reports do not replay model work on startup", () => {
+  const old = child("restored"),
+    live = child("new");
+  expect(collectLiveBranchReturnBatches([old], new Set())).toEqual([]);
+  const batches = collectLiveBranchReturnBatches(
+    [old, live],
+    new Set(live.evidence.map((e) => e.id)),
+  );
+  expect(batches).toHaveLength(1);
+  expect(batches[0].entries.map((e) => e.child.id)).toEqual(["new"]);
+});
+
 test("siblings wait for every active dependency and return once as a group", () => {
   const a = child("a"),
     b = child("b");

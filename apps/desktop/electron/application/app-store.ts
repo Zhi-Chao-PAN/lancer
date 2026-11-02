@@ -1,6 +1,7 @@
 import { assertTaskTokenBudget } from "../orchestration/task-limits";
 import {
   collectBranchReturnBatches,
+  collectLiveBranchReturnBatches,
   prepareBranchReturnBatch,
 } from "../orchestration/branch-return-batch";
 import { hasPendingChildCreation } from "../orchestration/app-store-orchestration";
@@ -242,6 +243,8 @@ export class DesktopAppStore {
   private readonly worktreeRoot: string;
   private readonly isAppWorktreePath: (path: string) => Promise<boolean>;
   private readonly returningParents = new Set<string>();
+  /** Recovered reports stay readable; startup must not replay old model work. */
+  private readonly liveBranchReturnIds = new Set<string>();
   private readonly assistantsStore: LancerAssistantStore;
   private readonly uiStateFilePath: string;
   private readonly scheduledTasksFilePath: string;
@@ -1365,6 +1368,15 @@ export class DesktopAppStore {
 
   listThreadsToolResult(parentRef: SessionRef) {
     return this.orchestrationOwner.listThreadsToolResult(parentRef);
+  }
+
+  async waitThreadsToolResult(
+    parentRef: SessionRef,
+    input: import("../orchestration/orchestration-runtime").WaitThreadsInput,
+    signal?: AbortSignal,
+  ) {
+    await this.initialize();
+    return this.orchestrationOwner.waitThreadsToolResult(parentRef, input, signal);
   }
 
   async readThreadToolResult(parentRef: SessionRef, threadId: string) {
@@ -3502,6 +3514,7 @@ export class DesktopAppStore {
           ...this.state,
           orchestrationChildren: this.state.orchestrationChildren.map((child) => {
             const evidence = branchReturnEvidence(child, event);
+            if (evidence) this.liveBranchReturnIds.add(evidence.id);
             return evidence ? { ...child, evidence: [...child.evidence, evidence] } : child;
           }),
         };
@@ -3528,7 +3541,10 @@ export class DesktopAppStore {
 
   private dispatchBranchReturns(): void {
     if (this.persistenceReadiness !== "ready") return;
-    for (const batch of collectBranchReturnBatches(this.state.orchestrationChildren)) {
+    for (const batch of collectLiveBranchReturnBatches(
+      this.state.orchestrationChildren,
+      this.liveBranchReturnIds,
+    )) {
       const target = batch.target;
       const key = sessionKey(target);
       const parent = this.sessionFromState(target);
