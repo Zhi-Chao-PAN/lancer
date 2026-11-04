@@ -55,6 +55,14 @@ shard must pass the stable `desktop-core` aggregate. Per-shard JSON reports,
 file timing summaries, and failure artifacts are retained. Discovery guards
 prove the four shards cover the full suite exactly once.
 
+Linux CI Core launches each Electron process inside its own Xvfb/openbox session
+through the shared test harness. Two workers can still run concurrently, while
+focus, pointer capture and clipboard state cannot leak between their applications.
+The wrapper forwards Electron inspector flags and exit status and stops its owned
+window manager when the application exits. macOS, Windows and non-Core launches
+keep their existing launcher. A POSIX contract test covers argument forwarding and
+cleanup; the Linux Core lane supplies the actual display-server integration proof.
+
 Core includes credential-free local-extension and injected-event regression
 coverage. Real-provider tests live in `tests/live`; real OS focus/clipboard
 coverage lives in `tests/native`. Neither a stubbed event nor an all-skipped

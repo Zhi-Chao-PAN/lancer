@@ -158,6 +158,11 @@ export async function launchDesktop(
   const normalized = normalizeLaunchOptions(options);
   const agentDir = await prepareAgentDir(userDataDir, normalized);
   const env = buildDesktopLaunchEnv(userDataDir, agentDir, normalized);
+  const isolatedDisplay =
+    process.platform === "linux" &&
+    Boolean(process.env.CI) &&
+    process.env.PI_APP_TEST_LANE === "core";
+  if (isolatedDisplay) env.PI_APP_TEST_ELECTRON_BINARY = electronExecutablePath;
   // Playwright's Electron video recorder can stall loadURL on Linux, leaving a
   // placeholder BrowserWindow whose URL never leaves empty. Skip it there;
   // callers still capture screenshots and traces.
@@ -173,7 +178,9 @@ export async function launchDesktop(
   const electronApp = await electron.launch({
     // Match packaged launches, without Playwright's extra app.whenReady shim.
     // The application owns readiness; the harness attaches to its real windows.
-    executablePath: electronExecutablePath,
+    executablePath: isolatedDisplay
+      ? join(desktopDir, "tests/helpers/electron-isolated-display.sh")
+      : electronExecutablePath,
     args: electronCliArgs(desktopDir, normalized.disableGpu),
     cwd: desktopDir,
     env,

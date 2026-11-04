@@ -9,6 +9,7 @@ import {
 } from "../helpers/desktop-extension-fixture";
 import {
   createNamedThread,
+  getSelectedTranscript,
   selectSession,
   launchDesktop,
   makeUserDataDir,
@@ -85,6 +86,15 @@ test("custom frontend exchanges Chord state while its opaque frame cannot access
     await window.getByTestId("composer").press("Enter");
     await expect(frame.locator("#counter")).toHaveText("Count 0 · activations 1");
     expect(await frameElement.getAttribute("src")).not.toBe(oldFrameUrl);
+    // The replacement frame mounts before /reload finishes its composer cleanup.
+    // Complete that earlier command before starting the independent draft-navigation proof.
+    await expect
+      .poll(async () =>
+        (await getSelectedTranscript(window))?.transcript.some(
+          (item) => item.kind === "activity" && item.label === "Reloaded session resources",
+        ),
+      )
+      .toBe(true);
     // This is a boundary assertion against the real exposed API, not a shortcut for UI behavior.
     const staleResult = await window.evaluate(async (connectionId) => {
       try {
