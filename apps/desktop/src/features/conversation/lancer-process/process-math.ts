@@ -142,6 +142,24 @@ export function knownDurationSeconds(
   if (!durations.length) return null;
   return Math.max(1, Math.round(durations.reduce((total, seconds) => total + seconds, 0)));
 }
+/** Paint the arrived head for the observing frame and the next one.
+ * Smoothstep reaches the anchor only in the last ~20ms, so one late frame
+ * removes the route before a sampler can record the landing. Two frames cover
+ * a capture that runs either before or after the painter, at any frame rate.
+ * The returned time is the route clock; the landing ring keeps the real schedule. */
+export function presentArrivalTime(
+  eventTime: number,
+  scheduledTime: number,
+  frame: number,
+  shownFrame: number | undefined,
+): { readonly time: number; readonly shownFrame: number | undefined } {
+  if (!(scheduledTime >= eventTime)) return { time: scheduledTime, shownFrame: undefined };
+  const shown = shownFrame ?? frame;
+  return {
+    time: frame <= shown + 1 ? eventTime - 1e-4 : scheduledTime,
+    shownFrame: shown,
+  };
+}
 export const clock = (time: number) => {
   const seconds = 20 * 3600 + 10 * 60 + Math.round(time * 7);
   return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;

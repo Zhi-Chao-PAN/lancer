@@ -1,7 +1,7 @@
 import { renderRoute, updateFlight, svgElement } from "@lancer/light-ui";
 export { flightGeometry } from "@lancer/light-ui";
 import { useLayoutEffect, useRef } from "react";
-import { flightEase, LANDING_SECONDS, outEase, segment, type Point } from "./process-math";
+import { LANDING_SECONDS, outEase, presentArrivalTime, type Point } from "./process-math";
 import { processCurveRoutes, readCurveAnchor } from "./process-curve-routes";
 import type { ProcessFixture, ProcessViewState } from "./process-types";
 
@@ -28,27 +28,51 @@ export function ProcessCurves({
       root = svg?.parentElement;
     if (!svg || !root) return;
     const painted = new Map<string, { node: SVGElement; color?: string }>();
+    const arrivalFrames = new Map<string, number>();
     let frame = 0,
+      animationFrame = 0,
       serial = 0,
       revision = 0;
     const draw = () => {
       const { data, state: sampled, emissions } = input.current;
+      const now = performance.now();
       const elapsed =
         sampled.flightSampledAt === undefined
           ? 0
-          : Math.max(0, (performance.now() - sampled.flightSampledAt) / 1000);
-      const state =
-        sampled.flightTimes && sampled.flightSampledAt !== undefined
-          ? {
-              ...sampled,
-              flightTimes: Object.fromEntries(
-                Object.entries(sampled.flightTimes).map(([id, time]) => [id, time + elapsed]),
-              ),
-            }
-          : sampled;
+          : Math.max(0, (now - sampled.flightSampledAt) / 1000);
+      const nextArrivals = new Map<string, number>();
+      let flightTimes = sampled.flightTimes;
+      let routeTimes = sampled.flightTimes;
+      if (sampled.flightTimes && sampled.flightSampledAt !== undefined) {
+        const scheduledTimes = { ...sampled.flightTimes };
+        const heldTimes = { ...sampled.flightTimes };
+        for (const [id, time] of Object.entries(sampled.flightTimes)) {
+          const scheduled = time + elapsed;
+          scheduledTimes[id] = scheduled;
+          const event = data.events.find((event) => event.id === id);
+          if (!event) {
+            heldTimes[id] = scheduled;
+            continue;
+          }
+          const presented = presentArrivalTime(
+            event.time,
+            scheduled,
+            animationFrame,
+            arrivalFrames.get(id),
+          );
+          heldTimes[id] = presented.time;
+          if (presented.shownFrame !== undefined) nextArrivals.set(id, presented.shownFrame);
+        }
+        flightTimes = scheduledTimes;
+        routeTimes = heldTimes;
+      }
+      const state = flightTimes === sampled.flightTimes ? sampled : { ...sampled, flightTimes };
+      const routeState = routeTimes === flightTimes ? state : { ...state, flightTimes: routeTimes };
       if (document.hidden) return;
       const rect = svg.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
+      arrivalFrames.clear();
+      for (const [id, shown] of nextArrivals) arrivalFrames.set(id, shown);
       const cache = new Map<string, Point | null>();
       const read = (key: Parameters<typeof readCurveAnchor>[1]) => {
         if (!cache.has(key)) cache.set(key, readCurveAnchor(root, key, rect));
@@ -58,7 +82,7 @@ export function ProcessCurves({
       const routes =
         getComputedStyle(root).visibility === "hidden"
           ? []
-          : processCurveRoutes(data, state, moving, read);
+          : processCurveRoutes(data, routeState, moving, read);
       const landings: { id: string; attrs: Record<string, string | number> }[] = [];
       if (moving)
         for (const event of data.events) {
@@ -143,6 +167,7 @@ export function ProcessCurves({
       if (frame || document.hidden) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
+        animationFrame += 1;
         draw();
       });
     };

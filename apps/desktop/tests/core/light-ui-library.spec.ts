@@ -17,6 +17,8 @@ test("standalone light layer preserves anchors, pauses, cancels and cleans up wi
           webPreferences: { sandbox: true },
         });
         await window.loadURL(url);
+        // Unmapped X11 windows make Playwright captureScreenshot time out.
+        window.showInactive();
       },
       pathToFileURL(resolve("packages/light-ui/demo/verify.html")).href,
     );
@@ -64,6 +66,7 @@ test("standalone demo creates multiple trees, forks, merges and downloadable del
           webPreferences: { sandbox: true },
         });
         await window.loadURL(url);
+        window.showInactive();
       },
       pathToFileURL(resolve("packages/light-ui/demo/index.html")).href,
     );

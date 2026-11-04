@@ -63,6 +63,10 @@ test("a failed tree stays on its conversation and node while neighboring trees r
       },
       { channel: desktopIpc.getSessionTree, id: failed.sessionId },
     );
+    // Visible windows read every lane during the first paint. Reload so the
+    // next read happens after the fault is installed.
+    await page.reload();
+    await expect(page.getByRole("button", { name: "竞品调研", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "竞品调研", exact: true }).click();
     await expect(page.locator('.lhc[data-tree-error="true"]')).toHaveCount(1);
     await expect(page.locator(".conversation-tree-error")).toContainText(

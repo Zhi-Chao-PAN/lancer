@@ -35,6 +35,16 @@ export function isSessionVisibleInWindow(
   if (!isSelectedSession(state, sessionRef)) {
     return false;
   }
+  // Linux background tests map the window with showInactive so screenshots have
+  // a compositor frame. That window is not a viewed session until it is focused.
+  if (
+    process.env.PI_APP_TEST_MODE === "background" &&
+    window &&
+    !window.isDestroyed() &&
+    !window.isFocused()
+  ) {
+    return false;
+  }
   return Boolean(window && !window.isDestroyed() && !window.isMinimized() && window.isVisible());
 }
 

@@ -656,6 +656,8 @@ export function isCloseFocusedSurfaceShortcut(input: {
 
 export interface PiDesktopApi {
   platform: NodeJS.Platform;
+  /** Host can open a Doubao App session: macOS, or a test that injects a helper. */
+  doubaoAppAvailable: boolean;
   versions: NodeJS.ProcessVersions;
   lancerAction(input: import("./lancer-assistants").LancerAction): Promise<DesktopAppState>;
   ping(): Promise<string>;

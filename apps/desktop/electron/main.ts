@@ -31,6 +31,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { augmentPosixPath } from "../scripts/augment-path.cjs";
 import { DesktopAppStore } from "./application/app-store";
+import { revealInFolder } from "./platform/reveal-in-folder";
 import { WindowOwner } from "./windows/window-owner";
 import { createPiOrbWindow } from "./windows/pi-orb-window";
 import { ControlService } from "./control/control-service";
@@ -505,7 +506,12 @@ function createWindow(): BrowserWindow {
   window.once("ready-to-show", () => {
     if (!backgroundTestMode) {
       window.show();
+      return;
     }
+    // Background tests stay unfocused, but an unmapped X11 window never gives
+    // Chromium a compositor frame. Playwright's Page.captureScreenshot then
+    // waits until timeout. showInactive maps the window without focusing it.
+    if (process.platform === "linux") window.showInactive();
   });
   window.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") {
@@ -1295,7 +1301,7 @@ app
         readWorkspaceFile,
         revealWorkspaceFile: async (workspacePath, filePath) => {
           const resolved = await resolveExistingWorkspacePath(workspacePath, filePath);
-          shell.showItemInFolder(resolved);
+          revealInFolder(resolved);
         },
         getChangedFiles,
         getFileDiff,

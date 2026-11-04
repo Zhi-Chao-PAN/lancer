@@ -1,4 +1,8 @@
-import { flightEase } from "../../src/features/conversation/lancer-process/process-math";
+import {
+  FLIGHT_SECONDS,
+  flightEase,
+  presentArrivalTime,
+} from "../../src/features/conversation/lancer-process/process-math";
 import { expect, test } from "@playwright/test";
 import { buildLiveProcessData } from "../../src/features/conversation/lancer-process/live-model";
 import { LiveEmissionClock } from "../../src/features/conversation/lancer-process/live-emissions";
@@ -160,6 +164,20 @@ test("workspace video gates never become an unrelated conversation's history", (
       videoLearn: { ...videoLearn, busy: true, guiStatus: "RUNNING", sessions: [owned] },
     }).data.lanes[0]?.statusLabel,
   ).toBe("运行中");
+  // A finished learn is an explicit success. Idle history with no outcome stays neutral,
+  // including a learn that has only reached an intermediate gate.
+  expect(
+    buildLiveProcessData({
+      ...input,
+      videoLearn: { ...videoLearn, guiStatus: "HANDED_OFF", sessions: [owned] },
+    }).data.lanes[0]?.statusLabel,
+  ).toBe("完成");
+  expect(
+    buildLiveProcessData({
+      ...input,
+      videoLearn: { ...videoLearn, guiStatus: "MEDIA_READY", sessions: [owned] },
+    }).data.lanes[0]?.statusLabel,
+  ).toBe("已结束");
   expect(
     buildLiveProcessData({ ...input, videoLearn: { ...videoLearn, sessions: [owned] } }).data.events
       .length,
@@ -189,6 +207,25 @@ test("flight seeds vary arc direction and shape without changing during flight",
   expect(arcs[2]![1].y).toBeGreaterThan(a.y);
   expect(flightControls(a, b, 0.6)).toEqual(arcs[2]);
   expect(flightControls({ x: 10, y: 5 }, b, 0.1).every((point) => point.y >= 8)).toBe(true);
+});
+
+test("arrival keeps the eased head on the anchor for the frames that can sample it", () => {
+  const eventTime = 12;
+  const noticedLate = presentArrivalTime(eventTime, eventTime + 0.4, 5, undefined);
+  expect(noticedLate.shownFrame).toBe(5);
+  expect(noticedLate.time).toBeCloseTo(eventTime - 1e-4);
+  const progress = 1 - (eventTime - noticedLate.time) / FLIGHT_SECONDS;
+  expect(flightEase(progress)).toBeGreaterThanOrEqual(0.999);
+  expect(
+    presentArrivalTime(eventTime, eventTime + 0.5, 6, noticedLate.shownFrame).time,
+  ).toBeCloseTo(eventTime - 1e-4);
+  expect(presentArrivalTime(eventTime, eventTime + 0.5, 7, noticedLate.shownFrame).time).toBe(
+    eventTime + 0.5,
+  );
+  expect(presentArrivalTime(eventTime, eventTime - 0.2, 8, noticedLate.shownFrame)).toEqual({
+    time: eventTime - 0.2,
+    shownFrame: undefined,
+  });
 });
 
 test("flight accelerates in the middle and slows symmetrically at both ends", () => {
