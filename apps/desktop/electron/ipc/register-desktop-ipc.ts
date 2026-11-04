@@ -23,6 +23,7 @@ import {
 } from "../../contracts/ipc";
 import type { DesktopAppStore } from "../application/app-store";
 import type { NotificationPermissionService } from "../platform/notification-permission";
+import { revealInFolder } from "../platform/reveal-in-folder";
 import type { TerminalService } from "../platform/terminal-service";
 import type { ThemeManager } from "../platform/theme-manager";
 import type { WindowOwner } from "../windows/window-owner";
@@ -1090,7 +1091,7 @@ function registerWorkspaceFileIpc(
           return createAnimation(root, input.videoId, input.startMs, options, input.idea);
         if (channel === desktopIpc.animationExport) {
           const result = await exportAnimation(root, input.videoId, options);
-          if (result.exportPath && !result.error) shell.showItemInFolder(result.exportPath);
+          if (result.exportPath && !result.error) revealInFolder(result.exportPath);
           return result;
         }
         return readAnimation(root, input.videoId);

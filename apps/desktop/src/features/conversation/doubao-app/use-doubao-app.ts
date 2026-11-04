@@ -368,7 +368,7 @@ export function useDoubaoApp(api: PiDesktopApi | undefined, target: SessionRef |
     state,
     ready: Boolean(state),
     createHandler: (workspaceId: string, onState: (state: DesktopAppState) => void) =>
-      api?.platform === "darwin"
+      api?.doubaoAppAvailable
         ? () => {
             void create(workspaceId, onState).catch(() => undefined);
           }

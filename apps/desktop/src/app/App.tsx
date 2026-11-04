@@ -196,7 +196,7 @@ export default function App() {
       ? { workspaceId: selectedWorkspace.id, sessionId: selectedSession.id }
       : undefined,
   );
-  const selectDoubao = api?.platform === "darwin" ? doubao.choose : undefined;
+  const selectDoubao = api?.doubaoAppAvailable ? doubao.choose : undefined;
   const selectedRuntime = selectedWorkspace
     ? snapshot?.runtimeByWorkspace[selectedWorkspace.id]
     : undefined;

@@ -113,6 +113,8 @@ ipcRenderer.on(desktopIpc.appCommand, (_event, command: PiDesktopCommand) => {
 
 contextBridge.exposeInMainWorld("piApp", {
   platform: process.platform,
+  doubaoAppAvailable:
+    process.platform === "darwin" || Boolean(process.env.PI_APP_DOUBAO_HELPER_PATH),
   versions: process.versions,
   ping: () => ipcRenderer.invoke(desktopIpc.ping) as Promise<string>,
   getState: () => ipcRenderer.invoke(desktopIpc.stateRequest) as Promise<DesktopAppState>,
