@@ -17,6 +17,7 @@ import type {
 } from "../../contracts/desktop-state";
 import { resolvePackagedAppExecutable } from "./packaged-app";
 import { desktopShortcut, TINY_PNG_BASE64 } from "./native-input";
+import { startIsolatedDisplay } from "./isolated-display";
 import { formatSessionTitleForZone, stripLancerZonePrefix } from "../../contracts/lancer-zones";
 
 export {
@@ -161,8 +162,9 @@ export async function launchDesktop(
   const isolatedDisplay =
     process.platform === "linux" &&
     Boolean(process.env.CI) &&
-    process.env.PI_APP_TEST_LANE === "core";
-  if (isolatedDisplay) env.PI_APP_TEST_ELECTRON_BINARY = electronExecutablePath;
+    process.env.PI_APP_TEST_LANE === "core"
+      ? await startIsolatedDisplay(env)
+      : undefined;
   // Playwright's Electron video recorder can stall loadURL on Linux, leaving a
   // placeholder BrowserWindow whose URL never leaves empty. Skip it there;
   // callers still capture screenshots and traces.
@@ -175,19 +177,28 @@ export async function launchDesktop(
           },
         }
       : {};
-  const electronApp = await electron.launch({
-    // Match packaged launches, without Playwright's extra app.whenReady shim.
-    // The application owns readiness; the harness attaches to its real windows.
-    executablePath: isolatedDisplay
-      ? join(desktopDir, "tests/helpers/electron-isolated-display.sh")
-      : electronExecutablePath,
-    args: electronCliArgs(desktopDir, normalized.disableGpu),
-    cwd: desktopDir,
-    env,
-    ...recordVideo,
+  let electronApp: ElectronApplication;
+  try {
+    electronApp = await electron.launch({
+      // Match packaged launches, without Playwright's extra app.whenReady shim.
+      // The application owns readiness; the harness attaches to its real windows.
+      executablePath: electronExecutablePath,
+      args: electronCliArgs(desktopDir, normalized.disableGpu),
+      cwd: desktopDir,
+      env: isolatedDisplay?.env ?? env,
+      ...recordVideo,
+    });
+  } catch (error) {
+    await isolatedDisplay?.close();
+    throw error;
+  }
+  electronApp.once("close", () => {
+    isolatedDisplay?.close().catch((error: unknown) => {
+      console.error("Failed to stop the test display", error);
+    });
   });
 
-  return createDesktopHarness(electronApp);
+  return createDesktopHarness(electronApp, isolatedDisplay?.close);
 }
 
 export async function spawnDesktopProcess(
@@ -271,7 +282,10 @@ async function waitForDesktopRendererPage(
   );
 }
 
-function createDesktopHarness(electronApp: ElectronApplication): DesktopHarness {
+function createDesktopHarness(
+  electronApp: ElectronApplication,
+  cleanup?: () => Promise<void>,
+): DesktopHarness {
   let page: Page | undefined;
 
   async function getWindow(): Promise<Page> {
@@ -332,7 +346,11 @@ function createDesktopHarness(electronApp: ElectronApplication): DesktopHarness 
         .toBe(true);
     },
     close: async () => {
-      await electronApp.close();
+      try {
+        await electronApp.close();
+      } finally {
+        await cleanup?.();
+      }
     },
   };
 }
