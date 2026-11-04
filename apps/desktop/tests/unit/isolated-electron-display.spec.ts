@@ -10,7 +10,7 @@ test("isolated display waits for the server and WM and cleans up both owned proc
   const scripts = {
     Xvfb: '#!/bin/sh\necho $$ > "$TEST_SERVER_PID"\nprintf "%s\\n" "$@" > "$TEST_SERVER_ARGS"\necho 777 >&3\nexec sleep 30\n',
     openbox:
-      '#!/bin/sh\necho $$ > "$TEST_WM_PID"\nprintf "%s" "$DISPLAY" > "$TEST_DISPLAY"\nprintf "%s\\n" "$@" > "$TEST_WM_ARGS"\n[ -z "${XAUTHORITY:-}" ] || exit 91\nprintf "pi-app-wm-ready\\n"\nexec sleep 30\n',
+      '#!/bin/sh\necho $$ > "$TEST_WM_PID"\nprintf "%s" "$DISPLAY" > "$TEST_DISPLAY"\nprintf "%s\\n" "$@" > "$TEST_WM_ARGS"\n[ -z "${XAUTHORITY:-}" ] || exit 91\nprintf "Openbox diagnostic before readiness\\n\\npi-app-wm-ready\\n"\nexec sleep 30\n',
   };
   for (const [name, source] of Object.entries(scripts)) {
     await writeFile(join(root, name), source);

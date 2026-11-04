@@ -1,7 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
 
-function outputLine(child: ChildProcess, stream: Readable): Promise<string> {
+function outputLine(
+  child: ChildProcess,
+  stream: Readable,
+  accepts: (line: string) => boolean = () => true,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     let output = "";
     const finish = (error?: Error, line?: string) => {
@@ -17,7 +21,15 @@ function outputLine(child: ChildProcess, stream: Readable): Promise<string> {
       finish(new Error(`Display helper exited before readiness (${code})`));
     const onData = (data: Buffer) => {
       output += data.toString();
-      if (output.includes("\n")) finish(undefined, output.split("\n")[0]!.trim());
+      while (output.includes("\n")) {
+        const boundary = output.indexOf("\n");
+        const line = output.slice(0, boundary).trim();
+        output = output.slice(boundary + 1);
+        if (accepts(line)) {
+          finish(undefined, line);
+          return;
+        }
+      }
     };
     const timer = setTimeout(() => finish(new Error("Display helper did not become ready")), 5_000);
     stream.on("data", onData);
@@ -73,8 +85,8 @@ export async function startIsolatedDisplay(env: Record<string, string>) {
       env: displayEnv,
       stdio: ["ignore", "pipe", "ignore"],
     });
-    const ready = await outputLine(windowManager, windowManager.stdout!);
-    if (ready !== "pi-app-wm-ready") throw new Error("Invalid window manager readiness");
+    // Openbox also writes ordinary informational messages to stdout.
+    await outputLine(windowManager, windowManager.stdout!, (line) => line === "pi-app-wm-ready");
     return { env: displayEnv, close };
   } catch (error) {
     await close();
