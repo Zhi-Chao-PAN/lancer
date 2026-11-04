@@ -51,9 +51,9 @@ test("new thread opens directly into the focused composer", async () => {
     await expect(picker).toHaveValue(addedWorkspace);
 
     await expect(window.getByRole("button", { name: "Open Folder…", exact: true })).toBeVisible();
-    await expect(window.locator(".tright").getByRole("button", { name: "工作区工具" })).toHaveCount(
-      0,
-    );
+    await expect(
+      window.locator(".tright").getByRole("button", { name: "Workspace tools" }),
+    ).toHaveCount(0);
     await expect(window.locator("img.shell-sidebar__local")).toBeVisible();
     await picker.selectOption(secondWorkspace);
 
@@ -470,6 +470,34 @@ test("bottom model and thinking menus stay visible and selectable after resizing
         await expect(menu).toHaveCount(0);
       }
     }
+  } finally {
+    await harness.close();
+  }
+});
+
+test("keeps an unsent new-thread draft across Settings and New thread", async () => {
+  test.setTimeout(60_000);
+  const userDataDir = await makeUserDataDir();
+  const agentDir = join(userDataDir, "agent");
+  await seedAgentDir(agentDir);
+  const harness = await launchDesktop(userDataDir, {
+    agentDir,
+    initialWorkspaces: [await makeWorkspace("new-thread-draft-workspace")],
+    testMode: "background",
+  });
+
+  try {
+    const window = await harness.firstWindow();
+    await openNewThread(window);
+    const composer = window.getByTestId("new-thread-composer");
+    await composer.fill("unsent draft survives view switches");
+
+    await window.keyboard.press(desktopShortcut(","));
+    await expect(window.getByTestId("settings-surface")).toBeVisible();
+
+    await window.keyboard.press(desktopShortcut("N"));
+    await expect(composer).toBeVisible();
+    await expect(composer).toHaveValue("unsent draft survives view switches");
   } finally {
     await harness.close();
   }
