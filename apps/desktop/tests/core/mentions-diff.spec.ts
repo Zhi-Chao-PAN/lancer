@@ -40,7 +40,14 @@ test("shows workspace file mentions from the composer and inserts the selected f
       "Extensions",
       "Files",
     ]);
-    await expect(mentionMenu.locator(".mention-menu__item")).toHaveCount(4);
+    // Extension inventory grows independently of workspace file discovery.
+    await expect(mentionMenu.locator(".mention-menu__file .mention-menu__filename")).toHaveText([
+      "README.md",
+      "App.tsx",
+    ]);
+    await expect(
+      mentionMenu.locator(".mention-menu__item--extension .mention-menu__filename"),
+    ).toHaveText(["Codemode", "MCP", "Scheduled tasks", "Thread orchestration", "Tool search"]);
     await expect(mentionMenu).toContainText("Thread orchestration");
     await expect(mentionMenu).toContainText("Scheduled tasks");
 

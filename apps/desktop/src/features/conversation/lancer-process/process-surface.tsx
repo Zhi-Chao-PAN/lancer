@@ -80,6 +80,9 @@ export function LancerProcessSurface({
         data-testid="lancer-process-surface"
         data-relay-tree={data.lanes[0]?.id === "relay:download" ? "true" : undefined}
         data-provenance={emissions && !state.flightTimes ? "scripted-fixture" : "native-session"}
+        data-live-flight-count={
+          state.flightTimes ? Object.keys(state.flightTimes).length : undefined
+        }
         data-native-window={!emissions || state.flightTimes ? window.piApp?.platform : undefined}
         style={layoutStyle}
       >

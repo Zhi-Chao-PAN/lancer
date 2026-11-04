@@ -14,6 +14,7 @@ import {
   seedAgentDir,
   startThreadFromSurface,
   writeProjectExtension,
+  waitForTimelineLayout,
 } from "../helpers/electron-app";
 
 test("Lancer composer sends, steers and queues with drafts preserved and no redundant header actions", async () => {
@@ -100,8 +101,17 @@ export default function actionsFixture(pi) {
     const assistant = window.locator(".process-assistant");
     await expect(assistant).toContainText(["ACTION_REPLY INITIAL_ACTION"]);
     await idle();
+    // Model idle precedes both independent tree hydration and the end of the
+    // completion flight. Wait on their actual renderer state before sampling.
+    await expect(window.getByTestId("process-tree").getByTestId("process-event-node")).toHaveCount(
+      2,
+    );
+    await waitForTimelineLayout(window);
+    await expect(window.getByTestId("lancer-process-surface")).toHaveAttribute(
+      "data-live-flight-count",
+      "0",
+    );
     await expect(window.locator(".chat-header__status")).toHaveCount(0);
-    // Idle history must not keep reconstructing the animation SVG.
     await expect(window.locator("[data-flight-head], [data-flight-landing]")).toHaveCount(0);
     const idlePaints = await window.getByTestId("process-curves").evaluate(async (svg) => {
       const start = Number(svg.getAttribute("data-revision"));
