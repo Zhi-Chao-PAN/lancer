@@ -92,6 +92,29 @@ await test("Settings lists a switched-off built-in with its tools and name", asy
   assert.equal(supervisor.builtinExtensionName(join(workspacePath, "ext.ts")), undefined);
 });
 
+await test("hidden required factories load without presenting a misleading disable switch", async () => {
+  const { agentDir, workspacePath } = await createDirs();
+  let loads = 0;
+  const supervisor = new RuntimeSupervisor({
+    agentDir,
+    requiredExtensions: [
+      {
+        name: "host-guard",
+        hidden: true,
+        factory: () => {
+          loads++;
+        },
+      },
+    ],
+  });
+  const snapshot = await supervisor.getRuntimeSnapshot({ workspaceId: "w", path: workspacePath });
+  assert.equal(loads, 1);
+  assert.equal(
+    snapshot.extensions.some((e) => e.path === "<inline:host-guard>"),
+    false,
+  );
+});
+
 await test(
   "a session loads a built-in only while it is switched on, rechecked on reload",
   { timeout: 10_000 },

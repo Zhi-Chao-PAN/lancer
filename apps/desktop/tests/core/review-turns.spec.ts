@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { approveFixtureTool } from "../helpers/tool-approval";
 import {
   commitAllInGitRepo,
   initGitRepo,
@@ -126,6 +127,7 @@ test("Last turn captures actual tool edits and a response pins its own saved com
     await openNewThread(window);
     await window.getByLabel("New thread prompt", { exact: true }).fill("capture first");
     await window.getByRole("button", { name: "Start thread", exact: true }).click();
+    await approveFixtureTool(window, "write");
     await expectCompleted(window, "First capture complete");
     expect(await readFile(join(workspacePath, "result.txt"), "utf8")).toBe("FIRST_TURN_OUTPUT\n");
     await selectSidePanel(window, "Review");
@@ -137,6 +139,7 @@ test("Last turn captures actual tool edits and a response pins its own saved com
 
     await window.getByTestId("composer").fill("capture second");
     await window.getByTestId("composer").press("Enter");
+    await approveFixtureTool(window, "write");
     await expectCompleted(window, "Second capture complete");
     expect(await readFile(join(workspacePath, "result.txt"), "utf8")).toBe("SECOND_TURN_OUTPUT\n");
     await chooseReviewScope(window, "Uncommitted");

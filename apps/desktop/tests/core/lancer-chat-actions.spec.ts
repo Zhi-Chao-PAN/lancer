@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { approveFixtureTool } from "../helpers/tool-approval";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { desktopIpc } from "../../contracts/ipc";
@@ -222,6 +223,7 @@ export default function actionsFixture(pi) {
     await expect(composer).toHaveValue("");
     await composer.fill("TOOL_ACTION");
     await send.click();
+    await approveFixtureTool(window, "bash");
     await expect(window.locator(".process-stage__status--running")).toBeVisible();
     const border = window.locator(
       '.process-stage__head[data-running="true"] .process-running-border rect',

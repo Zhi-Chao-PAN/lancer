@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type FrameLocator, type Page } from "@playwright/test";
+import { approveFixtureTool } from "../helpers/tool-approval";
 import {
   createNamedThread,
   launchDesktop,
@@ -212,6 +213,8 @@ test("the actual PR Review example records a Pi review, opens files, prepares a 
       frame.getByText(`PR head ${head.slice(0, 8)} · committed changes only`, { exact: true }),
     ).toBeVisible();
     await frame.getByRole("button", { name: "Review with Pi", exact: true }).click();
+    await approveFixtureTool(window, "pr_review_read");
+    await approveFixtureTool(window, "pr_review_record");
     await expect(
       frame.getByRole("heading", { name: "Review · completed", exact: true }),
     ).toBeVisible({ timeout: 30_000 });

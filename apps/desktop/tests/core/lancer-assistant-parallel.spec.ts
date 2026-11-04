@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { approveFixtureTool } from "../helpers/tool-approval";
 import {
   getDesktopState,
   launchDesktop,
@@ -109,6 +110,14 @@ export default function(pi) {
     await page.getByLabel("任务 1", { exact: true }).fill("worker-A");
     await page.getByLabel("任务 2", { exact: true }).fill("worker-B");
     await page.getByRole("button", { name: "并行开始", exact: true }).click();
+    await expect
+      .poll(async () => (await getDesktopState(page)).orchestrationChildren.length)
+      .toBe(2);
+    for (const child of (await getDesktopState(page)).orchestrationChildren) {
+      await page.locator(`.lhc[data-l="lane:${child.childSessionId}"]`).click();
+      await approveFixtureTool(page, "parallel_probe");
+    }
+    await page.locator(`.lhc[data-l="lane:${parent.selectedSessionId}"]`).click();
     await expect
       .poll(
         async () =>

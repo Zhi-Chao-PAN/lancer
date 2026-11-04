@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { approveFixtureTool } from "../helpers/tool-approval";
 import {
   commitAllInGitRepo,
   initGitRepo,
@@ -101,6 +102,7 @@ test("a turn that edits files gets a changes card whose rows open that file's di
     await openNewThread(window);
     await window.getByLabel("New thread prompt", { exact: true }).fill("edit files");
     await window.getByRole("button", { name: "Start thread", exact: true }).click();
+    for (let i = 0; i < 7; i++) await approveFixtureTool(window, "write");
     await expectCompleted(window, "Edited the files");
 
     const card = window.getByTestId("turn-changes");

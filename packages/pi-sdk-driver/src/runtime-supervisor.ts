@@ -875,6 +875,12 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
       .filter(
         (extension) =>
           extension.path.startsWith("<inline:") &&
+          !this.requiredExtensions?.some(
+            (required) =>
+              typeof required !== "function" &&
+              required.hidden &&
+              extension.path === `<inline:${required.name}>`,
+          ) &&
           !resolvedRecordPaths.has(resolve(extension.path)),
       )
       .map((extension) => this.buildInlineExtensionRecord(extension));

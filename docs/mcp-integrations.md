@@ -4,8 +4,28 @@ Lancer loads Pi's MCP, tool-search and codemode integrations in both the runtime
 
 Tools keep Pi's exposure behavior. Deferred servers are discovered with `tool_search`; codemode servers activate the script tool as needed. Registering the codemode factory does not make the tool active in every session. MCP tool calls, including calls nested inside codemode, pass through Pi's `tool_call` hooks.
 
-The desktop confirmation hook lets known native read/orchestration tools and MCP tools marked read-only run normally. Writes, shell commands, destructive tools and tools without a read-only annotation require a native per-call confirmation. Approval is not remembered. Without an available confirmation UI, the call is blocked. The dialog masks credential-shaped parameter fields and refuses oversized arguments instead of silently truncating what the user reviews.
+The desktop confirmation hook exempts only known native inspection tools. Every
+MCP tool requires approval on every call, including tools advertising `readOnlyHint:
+true`. Server annotations are advisory and never grant trust. Codemode, child-thread
+creation and thread messaging also require confirmation; approving codemode does not
+approve the MCP calls nested inside it. Unknown tools, writes, edits and shell commands
+require the same confirmation. Approval is never remembered. Without an available
+confirmation UI, the call is blocked.
 
-This changes the previous unprompted behavior for mutating tools. The host integrations and confirmation hook are required factories, independent of optional built-in resource toggles. These hooks are not an operating-system sandbox: tool implementations run with the process's permissions, and a server's read-only annotations are trusted metadata. Review servers and extensions before enabling them.
+This intentionally changes the previous unprompted behavior for shell/edit/write and
+other non-inspection tools, as well as model-triggered delegation. The confirmation
+dialog follows the app language, masks credential-shaped fields and common secrets
+inside string values, and refuses oversized arguments instead of silently truncating
+them. Pattern masking cannot identify every possible secret; review tool arguments.
 
-Regression coverage checks that required factories survive optional built-in toggles, unknown/mutating calls need confirmation each time, cancellation blocks execution and credentials are masked. A synthetic stdio MCP fixture supports native read/approve/cancel proof without private services or real business writes.
+MCP, codemode and tool-search are separate optional built-ins in Skills and extensions.
+Disable their switches and reload the session to remove those integrations; the same
+preference applies to inventory and runtime loading. Only the confirmation hook is a
+required hidden integration, so disabling an optional integration cannot disable
+confirmation for the remaining tools.
+
+These hooks are not an operating-system sandbox. Installed extensions and server
+processes execute with their process permissions; review them before installation.
+Regression tests cover false read-only claims, execution-wrapper confirmation,
+per-call rejection, missing UI, masking and required-factory behavior. The synthetic
+stdio fixture supports Electron approval/cancellation proof without private services.

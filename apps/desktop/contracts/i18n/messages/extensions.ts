@@ -70,6 +70,14 @@ export const extensionsMessages = defineMessages(
     "extensions.dialog.cancel": "Cancel",
     "extensions.dialog.confirm": "Confirm",
     "extensions.dialog.submit": "Submit",
+    "extensions.approval.title": "Confirm this tool call",
+    "extensions.approval.once": "Approve this call only; approval is never remembered.",
+    "extensions.approval.tooLarge":
+      "Arguments exceed the confirmation limit. Split the operation into smaller calls.",
+    "extensions.approval.noUI":
+      "This operation requires confirmation in Lancer; no confirmation UI is available.",
+    "extensions.approval.denied":
+      "The user did not approve this operation. Preserve the current state; do not retry it through another tool.",
     "extensions.view.tooManyBeforeReady":
       "The extension sent too many messages before its view was ready. Reload the view to reconnect.",
     "extensions.view.frameReloaded": "The extension frame reloaded. Reload the view to reconnect.",
@@ -285,6 +293,11 @@ export const extensionsMessages = defineMessages(
     "extensions.dialog.cancel": "取消",
     "extensions.dialog.confirm": "确认",
     "extensions.dialog.submit": "提交",
+    "extensions.approval.title": "确认本次工具操作",
+    "extensions.approval.once": "仅批准本次调用；不会保存为始终允许。",
+    "extensions.approval.tooLarge": "参数超过确认窗口上限，请拆成较小操作后重新请求。",
+    "extensions.approval.noUI": "此操作需要在 Lancer 窗口逐次确认；当前没有可用确认界面。",
+    "extensions.approval.denied": "用户未批准本次操作。保留现状，不要通过其他工具重试同一操作。",
     "extensions.view.tooManyBeforeReady":
       "扩展在视图就绪前发送了过多消息。请重新加载视图以重新连接。",
     "extensions.view.frameReloaded": "扩展框架已重新加载。请重新加载视图以重新连接。",

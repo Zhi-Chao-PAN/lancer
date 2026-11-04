@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { approveFixtureTool } from "../helpers/tool-approval";
 import { stripLancerZonePrefix } from "../../contracts/lancer-zones";
 import {
   desktopShortcut,
@@ -121,6 +122,7 @@ test("lancer-ctl drives existing Electron session, queues/steers, respects appro
       .click();
     await window.getByLabel("New thread prompt", { exact: true }).fill("fixture initial");
     await window.getByRole("button", { name: "Start thread", exact: true }).click();
+    await approveFixtureTool(window, "write");
     await expect(window.locator(".process-assistant .message__content")).toContainText(
       "CONTROL_REPLY fixture initial",
     );
@@ -172,6 +174,7 @@ test("lancer-ctl drives existing Electron session, queues/steers, respects appro
       }),
     ).toHaveProperty("timedOut", true);
     await writeFile(releasePath, "release owned fixture\n");
+    for (let i = 0; i < 3; i++) await approveFixtureTool(window, "write");
     expect(await json("wait", id, "--timeout", "20")).toMatchObject({
       done: true,
       outcome: "idle",
@@ -217,6 +220,7 @@ test("lancer-ctl drives existing Electron session, queues/steers, respects appro
       ]),
     );
     await window.getByRole("button", { name: "Confirm", exact: true }).click();
+    await approveFixtureTool(window, "write");
     expect(await json("wait", id, "--timeout", "20")).toMatchObject({
       done: true,
       outcome: "idle",
@@ -236,6 +240,7 @@ test("lancer-ctl drives existing Electron session, queues/steers, respects appro
     );
     const ref = created.session as { sessionId: string };
     expect(ref.sessionId).not.toBe(id);
+    await approveFixtureTool(window, "write");
     await ctl("wait", ref.sessionId, "--timeout", "20");
     await expect(window.locator(".process-assistant .message__content")).toContainText(
       "CONTROL_REPLY new external task",
@@ -253,7 +258,15 @@ test("lancer-ctl drives existing Electron session, queues/steers, respects appro
     const messageFile = join(workspacePath, "external-message.txt");
     await writeFile(messageFile, "background external file task");
     await ctl("send", id, "--file", messageFile);
+    expect((await getDesktopState(window)).selectedSessionId).toBe(ref.sessionId);
+    // Selecting the pending session opens its modal immediately. Use the palette
+    // once, rather than clicking the now-obscured session row a second time.
+    await window.keyboard.press(desktopShortcut("K"));
+    await window.getByTestId("command-palette-input").fill("fixture initial");
+    await window.getByTestId("command-palette-input").press("Enter");
+    await approveFixtureTool(window, "write");
     await ctl("wait", id, "--timeout", "20");
+    await selectSession(window, "CLI-created thread");
     expect((await getDesktopState(window)).selectedSessionId).toBe(ref.sessionId);
     await expect(window.getByTestId("composer")).toHaveValue("Draft in new session");
     await expect(window.getByTestId("transcript")).not.toContainText(
@@ -288,6 +301,7 @@ test("lancer-ctl drives existing Electron session, queues/steers, respects appro
       "other workspace task",
     );
     const otherRef = other.session as { sessionId: string };
+    await approveFixtureTool(window, "write");
     await ctl("wait", otherRef.sessionId, "--timeout", "20");
     expect(await readFile(join(otherWorkspace, "control-result.txt"), "utf8")).toBe(
       "other workspace task",
@@ -439,6 +453,7 @@ test("lancer-ctl sets thinking on an existing background session and syncs the c
         ).stdout,
       ) as { session: { sessionId: string } }
     ).session;
+    await approveFixtureTool(window, "write");
     await ctl("wait", created.sessionId, "--timeout", "20");
     await ctl("new", "--draft", "--cwd", workspacePath, "--name", "Other thinking session");
     await expect(window.getByTestId("thread-title")).toHaveText("Other thinking session");

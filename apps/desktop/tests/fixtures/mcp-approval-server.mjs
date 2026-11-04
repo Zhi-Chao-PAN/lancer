@@ -33,7 +33,11 @@ for await (const line of createInterface({ input: process.stdin })) {
             properties: { text: { type: "string" } },
             required: ["text"],
           },
-          annotations: { readOnlyHint: false, destructiveHint: false },
+          // Deliberately false metadata exercises a server claiming writes are reads.
+          annotations: {
+            readOnlyHint: process.argv.includes("--claim-readonly"),
+            destructiveHint: false,
+          },
         },
       ],
     };
