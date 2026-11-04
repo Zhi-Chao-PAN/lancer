@@ -158,37 +158,41 @@ test("selects pinned threads first with 1-9 and paints badges while the modifier
     await expect(window.getByTestId("thread-title")).toHaveText("Alpha");
     await captureSidebarProof(window, "shortcut-pinned-before-send.png");
 
-    await window.keyboard.down(commandModifier);
+    await dispatchHintKey(window, "keydown", commandModifier);
     try {
       await expect(window.locator("[data-thread-shortcut]")).toHaveCount(3);
-      await window.keyboard.press("1");
+      await dispatchHintKey(window, "keydown", "1");
+      await dispatchHintKey(window, "keyup", "1");
       await expect(window.getByTestId("thread-title")).toHaveText("Charlie");
       await expect(window.locator("[data-thread-shortcut]")).toHaveCount(3);
-      await window.keyboard.press("2");
+      await dispatchHintKey(window, "keydown", "2");
+      await dispatchHintKey(window, "keyup", "2");
       await expect(window.getByTestId("thread-title")).toHaveText("Alpha");
       await expect(window.locator("[data-thread-shortcut]")).toHaveCount(3);
-      await window.keyboard.press("Shift");
+      await dispatchHintKey(window, "keydown", "Shift");
+      await dispatchHintKey(window, "keyup", "Shift");
       await expect(window.locator("[data-thread-shortcut]")).toHaveCount(0);
     } finally {
-      await window.keyboard.up(commandModifier);
+      await dispatchHintKey(window, "keyup", commandModifier);
     }
     await expect(window.locator("[data-thread-shortcut]")).toHaveCount(0);
 
-    await window.keyboard.down(commandModifier);
+    await dispatchHintKey(window, "keydown", commandModifier);
     try {
-      await window.keyboard.press("1");
+      await dispatchHintKey(window, "keydown", "1");
+      await dispatchHintKey(window, "keyup", "1");
       await expect(window.locator("[data-thread-shortcut]")).toHaveCount(3);
     } finally {
-      await window.keyboard.up(commandModifier);
+      await dispatchHintKey(window, "keyup", commandModifier);
     }
     await expect(window.locator("[data-thread-shortcut]")).toHaveCount(0);
 
-    await window.keyboard.down(otherModifier);
+    await dispatchHintKey(window, "keydown", otherModifier);
     try {
       await window.waitForTimeout(100);
       await expect(window.locator("[data-thread-shortcut]")).toHaveCount(0);
     } finally {
-      await window.keyboard.up(otherModifier);
+      await dispatchHintKey(window, "keyup", otherModifier);
     }
   } finally {
     await harness.close();
@@ -444,7 +448,7 @@ const commandModifier = process.platform === "darwin" ? "Meta" : "Control";
 const otherModifier = process.platform === "darwin" ? "Control" : "Meta";
 
 async function expectShortcutBadges(window: Page, titles: readonly string[]): Promise<void> {
-  await window.keyboard.down(commandModifier);
+  await dispatchHintKey(window, "keydown", commandModifier);
   try {
     await expect(window.locator("[data-thread-shortcut]")).toHaveCount(titles.length);
     for (const [index, title] of titles.entries()) {
@@ -454,7 +458,7 @@ async function expectShortcutBadges(window: Page, titles: readonly string[]): Pr
       ).toHaveText(String(index + 1));
     }
   } finally {
-    await window.keyboard.up(commandModifier);
+    await dispatchHintKey(window, "keyup", commandModifier);
   }
   await expect(window.locator("[data-thread-shortcut]")).toHaveCount(0);
 }
@@ -567,4 +571,22 @@ async function seedRecencyTimestamps(
 async function captureSidebarProof(window: Page, filename: string): Promise<void> {
   await mkdir(proofDir, { recursive: true });
   await window.locator(".shell-sidebar").screenshot({ path: join(proofDir, filename) });
+}
+
+// Core verifies renderer-held hints without relying on native focus shared by
+// parallel Xvfb windows. OS modifier routing belongs to the native lane.
+async function dispatchHintKey(
+  window: Page,
+  type: "keydown" | "keyup",
+  key: string,
+): Promise<void> {
+  const held = !(key === commandModifier && type === "keyup") && key !== otherModifier;
+  await window.locator("body").dispatchEvent(type, {
+    key,
+    code: key === "1" || key === "2" ? "Digit" + key : key,
+    ctrlKey: held && commandModifier === "Control",
+    metaKey: held && commandModifier === "Meta",
+    shiftKey: key === "Shift" && type === "keydown",
+    bubbles: true,
+  });
 }

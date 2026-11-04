@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { desktopIpc } from "../../contracts/ipc";
 import { expect, test } from "@playwright/test";
 import type {
@@ -18,6 +20,8 @@ import {
   makeWorkspace,
   pasteTinyPng,
   selectSession,
+  seedAgentDir,
+  writeProjectExtension,
 } from "../helpers/electron-app";
 
 async function selectedSessionContext(window: Parameters<typeof getDesktopState>[0]): Promise<{
@@ -177,7 +181,44 @@ test("delineates queued follow-ups and submitted steers in the timeline", async 
   test.setTimeout(60_000);
   const userDataDir = await makeUserDataDir();
   const workspacePath = await makeWorkspace("queued-messages-timeline");
+  const agentDir = join(userDataDir, "agent");
+  await seedAgentDir(agentDir, { withOpenAiAuth: false, withDefaultModel: false });
+  await writeFile(
+    join(agentDir, "settings.json"),
+    JSON.stringify({
+      defaultProvider: "queue-fixture",
+      defaultModel: "holding",
+      enabledModels: ["queue-fixture/holding"],
+      compaction: { enabled: false },
+    }),
+  );
+  // This test injects timeline events, but its Steer buttons still invoke Pi.
+  // Hold that real runtime locally so a fake API key cannot race the assertions.
+  await writeProjectExtension(
+    workspacePath,
+    "queue-fixture.ts",
+    `
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+export default function(pi) {
+  pi.registerProvider("queue-fixture", {
+    baseUrl: "http://127.0.0.1:9/never-contact", apiKey: "LOCAL_FIXTURE", api: "queue-fixture",
+    models: [{ id: "holding", name: "Holding fixture", reasoning: false, input: ["text"], contextWindow: 128000, maxTokens: 4096, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+    streamSimple(model, _context, options) {
+      const stream = createAssistantMessageEventStream();
+      const message = { role: "assistant", content: [], api: model.api, provider: model.provider, model: model.id, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: "aborted", timestamp: Date.now() };
+      stream.push({ type: "start", partial: message });
+      const abort = () => stream.push({ type: "error", reason: "aborted", error: message });
+      if (options?.signal?.aborted) abort();
+      else options?.signal?.addEventListener("abort", abort, { once: true });
+      return stream;
+    },
+  });
+}
+`,
+  );
   const harness = await launchDesktop(userDataDir, {
+    agentDir,
+    scrubProviderEnv: true,
     initialWorkspaces: [workspacePath],
     testMode: "background",
   });
