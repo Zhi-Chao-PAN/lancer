@@ -77,31 +77,15 @@ test("desktop orb expands, opens a session and keeps monitoring on outside focus
     await expect(orb.locator(".pi-panel")).toHaveClass(/closed/);
     await orb.locator(".pi-orb").click();
     await expect(orb.locator(".pi-panel")).not.toHaveClass(/closed/);
-    await harness.electronApp.evaluate(({ app, BrowserWindow }) => {
-      app.focus({ steal: true });
-      BrowserWindow.getAllWindows()
-        .find((window) => window.webContents.getURL().includes("pi-orb.html"))
-        ?.focus();
-    });
-    await expect
-      .poll(() =>
-        harness.electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getFocusedWindow()?.webContents.getURL(),
-        ),
-      )
-      .toContain("pi-orb.html");
-    await harness.electronApp.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()
-        .find((window) => window.webContents.getURL().includes("index.html"))
-        ?.focus();
-    });
-    await expect
-      .poll(() =>
-        harness.electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getFocusedWindow()?.webContents.getURL(),
-        ),
-      )
-      .toContain("index.html");
+    // Drive and observe the owned renderer windows. Global main-process focus
+    // polling races the inspector execution context while Electron activates a window.
+    const mainWindow = harness.electronApp
+      .windows()
+      .find((page) => page.url().includes("index.html"))!;
+    await orb.bringToFront();
+    await expect.poll(() => orb.evaluate(() => document.hasFocus())).toBe(true);
+    await mainWindow.bringToFront();
+    await expect.poll(() => mainWindow.evaluate(() => document.hasFocus())).toBe(true);
     await expect(orb.locator(".pi-panel")).not.toHaveClass(/closed/);
     await expect.poll(() => orb.evaluate(() => innerWidth)).toBe(740);
     await orb.getByLabel("收起", { exact: true }).click();
