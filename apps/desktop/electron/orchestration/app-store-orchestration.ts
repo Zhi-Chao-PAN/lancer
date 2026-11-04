@@ -1,4 +1,5 @@
 import { delegatedTaskPrompt, isChildSubtreeSettled } from "./branch-return-batch";
+import { BRANCH_RETURN_TOOL, FAILED_BRANCH_RETURN_TITLE } from "./branch-return";
 import type { WaitThreadsInput, WaitThreadsToolDetails } from "./orchestration-runtime";
 import { TaskAdmission } from "./task-limits";
 import { randomUUID } from "node:crypto";
@@ -247,7 +248,7 @@ async function waitThreadsToolResult(
     status: c.status,
     result: [...c.transcript].reverse().find((m) => m.role === "child")?.text ?? c.latestTranscript,
   }));
-  if (!timedOut) {
+  if (!timedOut && input.acceptReports !== false) {
     const ids = new Set(children.map((c) => c.id));
     store.replaceOrchestrationChildren(
       store.orchestrationState().orchestrationChildren.map((c) =>
@@ -1213,19 +1214,18 @@ function projectOrchestrationChild(
   const updatedAt = latestSessionActivityAt(session?.updatedAt ?? child.updatedAt, rawTranscript);
   let status = session ? toOrchestrationStatus(session.status, childRef, store) : child.status;
   if (session?.status === "idle") {
-    if (["cancelled", "failed", "interrupted"].includes(session.lastRunOutcome ?? ""))
+    if (session.lastRunOutcome === "completed") status = "complete";
+    else if (["cancelled", "failed", "interrupted"].includes(session.lastRunOutcome ?? ""))
       status = "failed";
     else if (!store.isTranscriptLoaded(childRef)) {
       const report = [...child.evidence]
         .reverse()
-        .find((e) => e.toolName === "lancer-branch-return" && e.kind === "worker_report");
+        .find((e) => e.toolName === BRANCH_RETURN_TOOL && e.kind === "worker_report");
       status = report
-        ? report.title === "分支失败回传"
+        ? report.title === FAILED_BRANCH_RETURN_TITLE
           ? "failed"
           : "complete"
-        : child.status === "running" || child.status === "waiting"
-          ? "failed"
-          : child.status;
+        : child.status;
     }
   }
 

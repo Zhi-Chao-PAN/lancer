@@ -178,3 +178,18 @@ PI_APP_REAL_AUTH=0 PI_APP_TEST_MODE=background \
 `./scripts/lancer-ctl new --draft --cwd /path/to/project --zone video --name '待办 · 下载视频'`
 
 `--draft` 只复用原会话创建与分区路径，不发送消息、不调用模型；不能同时传正文或 `--file`。回执 `created: true, started: false` 表示空会话已建立，不表示任务完成。省略 `--model` 沿用当前默认模型，任务名称不代表已配置该任务所需的其他模型。Wire API 为 `operation: "new", draft: true`，不含 `message`。
+
+### Agent child waiting
+
+The in-session `wait_threads` tool waits on child-subtree events (default 60 seconds,
+maximum 120). A timeout does not cancel children or accept pending reports. A caller
+can wait again; live pending reports remain eligible for the normal automatic return
+once the parent is idle. Restored reports stay available for explicit inspection and
+never automatically restart model work. A successful wait accepts the reports it
+returns, preventing a second automatic delivery.
+
+Repeated unchanged `list_threads` / `read_thread` calls may park on the same event
+wait, but always return a fresh list/read result with their original action and schema.
+Implicit inspection waits leave reports pending for explicit wait or normal automatic delivery.
+Cold-start child status uses persisted `lastRunOutcome` first. Legacy records without
+an outcome or report keep their prior status; missing history is not evidence of failure.

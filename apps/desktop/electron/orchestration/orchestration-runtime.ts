@@ -16,6 +16,8 @@ export const sendMessageToThreadToolName = "send_message_to_thread";
 export const sendMessageToThreadAction = "pi_gui_send_message_to_thread";
 export interface WaitThreadsInput {
   readonly timeoutMs?: number;
+  /** Internal inspection parking must not consume reports it does not return. */
+  readonly acceptReports?: boolean;
 }
 export interface WaitThreadsToolDetails {
   readonly action: "pi_gui_wait_threads";
@@ -171,7 +173,8 @@ function createListThreadsTool(
   return {
     name: listThreadsToolName,
     label: "List threads",
-    description: "List Lancer threads visible to the current workspace and parent thread.",
+    description:
+      "List Lancer threads visible to the current workspace and parent thread. Repeated unchanged child inspection waits for an event, then returns a fresh thread list.",
     promptSnippet: "List relevant Lancer threads for the current workspace and parent context.",
     promptGuidelines: [
       "Use list_threads before reading or messaging another Lancer thread when you need the exact thread id.",
@@ -190,8 +193,10 @@ function createListThreadsTool(
         bridge.waitThreads &&
         children.some((c) => unfinished(c.status)) &&
         inspection.listed === fingerprint
-      )
-        return bridge.waitThreads(ctx, {}, signal);
+      ) {
+        await bridge.waitThreads(ctx, { acceptReports: false }, signal);
+        return bridge.listThreads(ctx);
+      }
       inspection.listed = fingerprint;
       return result;
     },
@@ -205,7 +210,8 @@ function createReadThreadTool(
   return {
     name: readThreadToolName,
     label: "Read thread",
-    description: "Read a Lancer thread transcript or child thread summary by id.",
+    description:
+      "Read a Lancer thread transcript or child thread summary by id. Repeated unchanged child inspection waits for an event, then returns that thread's current transcript.",
     promptSnippet: "Read a Lancer thread transcript by id.",
     promptGuidelines: [
       "Use read_thread with a thread id returned by list_threads or create_child_thread.",
@@ -241,8 +247,10 @@ function createReadThreadTool(
         inspection.children.has(childId) &&
         unfinished(result.details.status) &&
         inspection.reads.get(childId) === result.details.status
-      )
-        return bridge.waitThreads(ctx, {}, signal);
+      ) {
+        await bridge.waitThreads(ctx, { acceptReports: false }, signal);
+        return bridge.readThread(ctx, threadId);
+      }
       if (childId && result.details.status) inspection.reads.set(childId, result.details.status);
       return result;
     },
